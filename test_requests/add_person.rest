@@ -5,3 +5,12 @@ Content-Type: application/json
     "name": "the new person's name",
     "number": "12-23-34-45-56-67-78-89 :)"
 }
+
+###
+POST https://sheltered-waters-24999.herokuapp.com/api/persons/
+Content-Type: application/json
+
+{
+    "name": "the new person's name",
+    "number": "12-23-34-45-56-67-78-89 :)"
+}
