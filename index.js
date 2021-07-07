@@ -15,6 +15,7 @@ function isEmpty(obj) {
 }
 
 app.use(cors());
+app.use(express.static('build'));
 app.use('/api', express.json());
 
 // Set up logging with morgan using the tiny configuration
