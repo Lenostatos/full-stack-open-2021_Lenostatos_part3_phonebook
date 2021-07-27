@@ -1,7 +1,10 @@
-GET http://localhost:3001/api/persons/3
+GET http://localhost:3001/api/persons/60fd42f76b1a553eb0b806f4
 
 ###
 GET http://localhost:3001/api/persons/100
+
+###
+GET http://localhost:3001/api/persons/60fd42f76b1a553eb0b806f3
 
 ### 
 GET https://sheltered-waters-24999.herokuapp.com/api/persons/2

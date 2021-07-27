@@ -1,8 +1,9 @@
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
-
-const app = express();
+const Entry = require('./models/entry');
 
 /**
  * Indicates whether an object is emtpy, i.e. equivalent to {}.
@@ -13,6 +14,8 @@ function isEmpty(obj) {
     for (prop in obj) { return false; }
     return obj.constructor === Object;
 }
+
+const app = express();
 
 app.use(cors());
 app.use(express.static('build'));
@@ -57,49 +60,59 @@ app.get('/info', (req, res) => {
     `);
 });
 
-// Get all persons
-app.get('/api/persons', (req, res) => res.json(persons));
+// Get all entries
+app.get('/api/persons', async (req, res) => {
+    const entries = await Entry.find({});
+    res.json(entries);
+});
 
-// Post a new person
-app.post('/api/persons', (req, res) => {
+// Post a new entry
+app.post('/api/persons', async (req, res) => {
     const reqBody = req.body;
 
     if (!reqBody.name) {
         return res.status(400).json({ 
-            error: 'posted a person object without a name'
+            error: 'posted a phonebook entry without a name'
         });
     }
     if (!reqBody.number) {
         return res.status(400).json({ 
-            error: 'posted a person object without a number'
+            error: 'posted a phonebook entry without a number'
         });
     }
 
-    if (persons.some(person => person.name === reqBody.name)) {
-        return res.status(400).json({
-            error: `posted a person with the name ${reqBody.name} but the ` + 
-                'phonebook already has an entry for that name'
-        });
-    }
+    // if (persons.some(person => person.name === reqBody.name)) {
+    //     return res.status(400).json({
+    //         error: `posted a phonebook entry with the name ${reqBody.name} ` +
+    //                `but there is already an entry with that name in the ` +
+    //                `phonebook`
+    //     });
+    // }
     
-    const newPerson = {
-        id: Math.floor(Math.random() * Number.MAX_SAFE_INTEGER),
+    const postedEntry = new Entry({
         name: reqBody.name,
         number: reqBody.number
-    };
-    
-    persons.push(newPerson);
-    res.json(newPerson);
+    });
+
+    const savedEntry = await postedEntry.save();
+
+    res.json(savedEntry);
 });
 
-// Handle requests around single, existing persons
-app.route('/api/persons/:id(\\d+)')
-    .get((req, res) => {
-        const reqId = Number(req.params.id);
-        const reqPerson = persons.find(person => person.id === reqId);
+// Handle requests around single, existing entries
+app.route('/api/persons/:id')
+    .get(async (req, res) => {
 
-        if (reqPerson) {
-            res.json(reqPerson);
+        let requestedEntry;
+        try {
+            requestedEntry = await Entry.findById(req.params.id);
+        } catch (error) {
+            console.log('error with finding an entry:', error);
+            res.status(404).end();
+        }
+
+        if (requestedEntry) {
+            res.json(requestedEntry);
         } else {
             res.status(404).end();
         }
@@ -107,9 +120,12 @@ app.route('/api/persons/:id(\\d+)')
     .put((req, res) => {
 
     })
-    .delete((req, res) => {
-        const reqId = Number(req.params.id);
-        persons = persons.filter(person => person.id !== reqId);
+    .delete(async(req, res) => {
+        try {
+            await Entry.findByIdAndDelete(req.params.id);
+        } catch (error) {
+            console.log('error deleting an entry:', error);
+        }
 
         res.status(204).end();
     });
