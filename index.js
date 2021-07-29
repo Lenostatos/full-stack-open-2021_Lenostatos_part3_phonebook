@@ -25,110 +25,131 @@ app.use('/api', express.json());
 app.use(morgan('tiny'));
 
 // Create a custom morgan token for displaying the request body
-morgan.token('req-body', req => JSON.stringify(req.body));
+morgan.token('request-body', request => JSON.stringify(request.body));
 // Log only the body of post requests
-app.post('*', morgan('request body: :req-body'));
+app.post('*', morgan('request body: :request-body'));
 
-let persons = [
-    { 
-        "id": 1,
-        "name": "Arto Hellas", 
-        "number": "040-123456"
-    },
-    { 
-        "id": 2,
-        "name": "Ada Lovelace", 
-        "number": "39-44-5323523"
-    },
-    { 
-        "id": 3,
-        "name": "Dan Abramov", 
-        "number": "12-43-234345"
-    },
-    { 
-        "id": 4,
-        "name": "Mary Poppendieck", 
-        "number": "39-23-6423122"
-    }
-];
-
-app.get('/info', (req, res) => {
+app.get('/info', async (request, response) => {
+    const entryCount = await Entry.countDocuments({});
     const currentDate = new Date();
-    res.send(`
-        <p>The phonebook has ${persons.length} entries.</p>
+    response.send(`
+        <p>The phonebook has ${entryCount} entries.</p>
         <p>${currentDate.toDateString()} ${currentDate.toTimeString()}</p>
     `);
 });
 
 // Get all entries
-app.get('/api/persons', async (req, res) => {
+app.get('/api/persons', async (request, response) => {
     const entries = await Entry.find({});
-    res.json(entries);
+    response.json(entries);
 });
 
 // Post a new entry
-app.post('/api/persons', async (req, res) => {
-    const reqBody = req.body;
+app.post('/api/persons', async (request, response) => {
+    const requestBody = request.body;
 
-    if (!reqBody.name) {
-        return res.status(400).json({ 
+    if (!requestBody.name) {
+        return response.status(400).json({ 
             error: 'posted a phonebook entry without a name'
         });
     }
-    if (!reqBody.number) {
-        return res.status(400).json({ 
+    if (!requestBody.number) {
+        return response.status(400).json({ 
             error: 'posted a phonebook entry without a number'
         });
     }
 
-    // if (persons.some(person => person.name === reqBody.name)) {
-    //     return res.status(400).json({
-    //         error: `posted a phonebook entry with the name ${reqBody.name} ` +
+    // if (persons.some(person => person.name === requestBody.name)) {
+    //     return response.status(400).json({
+    //         error: `posted a phonebook entry with the name ${requestBody.name} ` +
     //                `but there is already an entry with that name in the ` +
     //                `phonebook`
     //     });
     // }
     
     const postedEntry = new Entry({
-        name: reqBody.name,
-        number: reqBody.number
+        name: requestBody.name,
+        number: requestBody.number
     });
 
     const savedEntry = await postedEntry.save();
 
-    res.json(savedEntry);
+    response.json(savedEntry);
 });
 
 // Handle requests around single, existing entries
 app.route('/api/persons/:id')
-    .get(async (req, res) => {
+    .get(async (request, response, next) => {
 
         let requestedEntry;
         try {
-            requestedEntry = await Entry.findById(req.params.id);
+            requestedEntry = await Entry.findById(request.params.id);
         } catch (error) {
-            console.log('error with finding an entry:', error);
-            res.status(404).end();
+            console.log('error while getting an entry:', error);
+            next(error);
         }
 
         if (requestedEntry) {
-            res.json(requestedEntry);
+            response.json(requestedEntry);
         } else {
-            res.status(404).end();
+            response.status(404).end();
         }
     })
-    .put((req, res) => {
+    .put(async (request, response, next) => {
+        const requestBody = request.body;
 
-    })
-    .delete(async(req, res) => {
+        ['id', 'name', 'number'].forEach(property => {
+            if (!requestBody[property]) {
+                return response.status(400).json({
+                    error: 
+                    `no ${property} provided with an entry update request`
+                });
+            }
+        });
+
+        const requestedUpdate = {
+            name: requestBody.name,
+            number: requestBody.number
+        };
+
         try {
-            await Entry.findByIdAndDelete(req.params.id);
+            const updatedEntryOnServer = await Entry.findByIdAndUpdate(
+                request.params.id,
+                requestedUpdate,
+                { new: true } // makes findByIdAndUpdate return the updated note 
+                // instead of the original one
+            );
+            response.json(updatedEntryOnServer);
         } catch (error) {
-            console.log('error deleting an entry:', error);
+            console.log('error while updating an entry:', error);
+            next(error);
+        }
+    })
+    .delete(async (request, response) => {
+        try {
+            await Entry.findByIdAndDelete(request.params.id);
+        } catch (error) {
+            console.log('error while deleting an entry:', error);
         }
 
-        res.status(204).end();
+        response.status(204).end();
     });
+
+app.use((request, response) => {
+    response.status(404).send({ error: 'unknown endpoint' });
+});
+
+function errorHandler(error, request, response, next) {
+    console.error(error);
+
+    if (error.name === 'CastError') {
+        return response.status(400).send({ error: 'malformed id' });
+    }
+
+    next(error);
+}
+
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
