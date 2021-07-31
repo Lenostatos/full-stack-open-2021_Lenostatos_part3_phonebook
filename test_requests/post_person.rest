@@ -7,6 +7,14 @@ Content-Type: application/json
 }
 
 ###
+POST http://localhost:3001/api/persons/
+Content-Type: application/json
+
+{
+    "name": "th"
+}
+
+###
 POST https://sheltered-waters-24999.herokuapp.com/api/persons/
 Content-Type: application/json
 

@@ -45,36 +45,21 @@ app.get('/api/persons', async (request, response) => {
 });
 
 // Post a new entry
-app.post('/api/persons', async (request, response) => {
+app.post('/api/persons', async (request, response, next) => {
     const requestBody = request.body;
-
-    if (!requestBody.name) {
-        return response.status(400).json({ 
-            error: 'posted a phonebook entry without a name'
-        });
-    }
-    if (!requestBody.number) {
-        return response.status(400).json({ 
-            error: 'posted a phonebook entry without a number'
-        });
-    }
-
-    // if (persons.some(person => person.name === requestBody.name)) {
-    //     return response.status(400).json({
-    //         error: `posted a phonebook entry with the name ${requestBody.name} ` +
-    //                `but there is already an entry with that name in the ` +
-    //                `phonebook`
-    //     });
-    // }
     
     const postedEntry = new Entry({
         name: requestBody.name,
         number: requestBody.number
     });
 
-    const savedEntry = await postedEntry.save();
-
-    response.json(savedEntry);
+    try {
+        const savedEntry = await postedEntry.save();
+        response.json(savedEntry);
+    } catch (error) {
+        console.log('error while saving a new entry');
+        next(error);
+    }
 });
 
 // Handle requests around single, existing entries
@@ -85,7 +70,7 @@ app.route('/api/persons/:id')
         try {
             requestedEntry = await Entry.findById(request.params.id);
         } catch (error) {
-            console.log('error while getting an entry:', error);
+            console.log('error while searching for an entry by id');
             next(error);
         }
 
@@ -96,32 +81,18 @@ app.route('/api/persons/:id')
         }
     })
     .put(async (request, response, next) => {
-        const requestBody = request.body;
-
-        ['id', 'name', 'number'].forEach(property => {
-            if (!requestBody[property]) {
-                return response.status(400).json({
-                    error: 
-                    `no ${property} provided with an entry update request`
-                });
-            }
-        });
-
-        const requestedUpdate = {
-            name: requestBody.name,
-            number: requestBody.number
-        };
-
+        
         try {
-            const updatedEntryOnServer = await Entry.findByIdAndUpdate(
-                request.params.id,
-                requestedUpdate,
-                { new: true } // makes findByIdAndUpdate return the updated note 
-                // instead of the original one
-            );
+            // mongoose recommends doing updates as follows instead of using, 
+            // e.g. findByIdAndUpdate: 
+            // https://mongoosejs.com/docs/documents.html#updating-using-queries
+            const entryOnServer = await Entry.findById(request.params.id);
+            // only ever update the number
+            entryOnServer.number = request.body.number;
+            const updatedEntryOnServer = await entryOnServer.save();
             response.json(updatedEntryOnServer);
         } catch (error) {
-            console.log('error while updating an entry:', error);
+            console.log('error while updating an entry');
             next(error);
         }
     })
@@ -144,6 +115,10 @@ function errorHandler(error, request, response, next) {
 
     if (error.name === 'CastError') {
         return response.status(400).send({ error: 'malformed id' });
+    }
+
+    if (error.name === 'ValidationError') {
+      return response.status(400).json({ error: error.message });
     }
 
     next(error);
